@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 interface PageContainerProps {
   title?: string;
   showBack?: boolean;
+  backTo?: string;
   children: React.ReactNode;
   className?: string;
   headerRight?: React.ReactNode;

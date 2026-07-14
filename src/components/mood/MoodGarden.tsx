@@ -25,11 +25,15 @@ export default function MoodGarden({
   records = [],
   studyRecords = [],
   days = 9,
+  showDaySwitcher,
+  onDaysChange,
   onExploreInsight,
 }: {
   records: MoodRecord[];
   studyRecords?: StudyRecord[];
   days?: number;
+  showDaySwitcher?: boolean;
+  onDaysChange?: (days: number) => void;
   onExploreInsight?: () => void;
 }) {
   const [selected, setSelected] = useState<MoodRecord | null>(null);

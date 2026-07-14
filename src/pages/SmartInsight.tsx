@@ -15,7 +15,7 @@ import { cn } from '@/lib/utils';
 
 export default function SmartInsight() {
   const { moodRecords, studyRecords } = useAppStore();
-  const [gardenDays, setGardenDays] = useState<7 | 14 | 21>(7);
+  const [gardenDays, setGardenDays] = useState<number>(7);
   const [showResilienceDetail, setShowResilienceDetail] = useState(false);
 
   const insights = useMemo<Insight[]>(
