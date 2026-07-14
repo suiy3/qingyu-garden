@@ -19,7 +19,7 @@ import SmartActionTrigger from "@/components/actions/SmartActionTrigger";
 
 export default function App() {
   return (
-    <Router>
+    <Router basename={import.meta.env.BASE_URL}>
       <SmartActionTrigger />
       <Routes>
         <Route path="/" element={<Home />} />
