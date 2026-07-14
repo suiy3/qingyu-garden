@@ -1,0 +1,22 @@
+import { cn } from '@/lib/utils';
+
+interface CardProps {
+  children: React.ReactNode;
+  className?: string;
+  onClick?: () => void;
+}
+
+export default function Card({ children, className, onClick }: CardProps) {
+  return (
+    <div
+      onClick={onClick}
+      className={cn(
+        'bg-white rounded-[20px] shadow-soft p-5',
+        onClick && 'cursor-pointer active:scale-[0.98] transition-transform',
+        className
+      )}
+    >
+      {children}
+    </div>
+  );
+}
