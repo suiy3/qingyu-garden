@@ -4,7 +4,6 @@ import PageContainer from '@/components/layout/PageContainer';
 import Card from '@/components/common/Card';
 import MoodGarden from '@/components/mood/MoodGarden';
 import InsightCard from '@/components/mood/InsightCard';
-import MoodForecastCard from '@/components/mood/MoodForecastCard';
 import { useAppStore } from '@/store/useAppStore';
 import {
   generateAllInsights,
@@ -15,7 +14,6 @@ import { cn } from '@/lib/utils';
 
 export default function SmartInsight() {
   const { moodRecords, studyRecords } = useAppStore();
-  const [gardenDays, setGardenDays] = useState<number>(7);
   const [showResilienceDetail, setShowResilienceDetail] = useState(false);
 
   const insights = useMemo<Insight[]>(
@@ -185,17 +183,11 @@ export default function SmartInsight() {
           )}
         </Card>
 
-        {/* 情绪预测预警 */}
-        <MoodForecastCard moodRecords={moodRecords} />
-
         {/* 情绪花园 */}
         <Card>
           <MoodGarden
             records={moodRecords}
             studyRecords={studyRecords}
-            days={gardenDays}
-            showDaySwitcher
-            onDaysChange={setGardenDays}
             onExploreInsight={handleExploreInsight}
           />
         </Card>

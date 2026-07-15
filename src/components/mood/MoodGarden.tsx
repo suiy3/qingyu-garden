@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
+
 import type { MoodRecord, StudyRecord } from '../../types';
 
 const MOOD_PLANT: Record<string, { emoji: string; name: string; language: string }> = {
@@ -10,12 +11,25 @@ const MOOD_PLANT: Record<string, { emoji: string; name: string; language: string
   tired:    { emoji: '🌸', name: '睡莲', language: '你不是枯萎了，你只是需要在水面歇一歇。' },
 };
 
+function computeStreak(records: MoodRecord[]): number {
+  if (records.length === 0) return 0;
+  // 去重到「天」，再按日历日连号判断是否连续
+  const dates = [...new Set(records.map((r) => r.createdAt.split('T')[0]))].sort();
+  let streak = 1;
+  for (let i = dates.length - 1; i > 0; i--) {
+    const cur = new Date(dates[i] + 'T00:00:00').getTime();
+    const prev = new Date(dates[i - 1] + 'T00:00:00').getTime();
+    if (Math.round((cur - prev) / 86400000) === 1) streak++;
+    else break;
+  }
+  return streak;
+}
+
 interface FlowerCell {
   record: MoodRecord;
   moodKey: string;
   vitality: number;
   isWilted: boolean;
-  stage: 'seed' | 'sprout' | 'bud' | 'bloom';
   sizeScale: number;
   dateStr: string;
   studyMin: number;
@@ -24,19 +38,14 @@ interface FlowerCell {
 export default function MoodGarden({
   records = [],
   studyRecords = [],
-  days = 9,
-  showDaySwitcher,
-  onDaysChange,
   onExploreInsight,
 }: {
   records: MoodRecord[];
   studyRecords?: StudyRecord[];
-  days?: number;
-  showDaySwitcher?: boolean;
-  onDaysChange?: (days: number) => void;
   onExploreInsight?: () => void;
 }) {
   const [selected, setSelected] = useState<MoodRecord | null>(null);
+  const [expanded, setExpanded] = useState(false);
 
   const sortedRecords = useMemo(() => {
     return [...records].sort(
@@ -44,21 +53,24 @@ export default function MoodGarden({
     );
   }, [records]);
 
-  const displayRecords = useMemo(() => {
-    return sortedRecords.slice(-days);
-  }, [sortedRecords, days]);
-
-  const streak = useMemo(() => Math.min(records.length, days), [records.length, days]);
-
-  const prosperity = useMemo(() => {
-    if (streak >= 7) return 'lush';
-    if (streak >= 4) return 'growing';
-    if (streak >= 1) return 'sprouting';
-    return 'empty';
-  }, [streak]);
+  const streak = useMemo(() => computeStreak(records), [records]);
 
   const flowers: FlowerCell[] = useMemo(() => {
-    return displayRecords.map((record) => {
+    // 按日期分组，每天只保留最新的一条记录
+    const latestByDate = new Map<string, MoodRecord>();
+    sortedRecords.forEach((record) => {
+      const date = record.createdAt.split('T')[0];
+      const existing = latestByDate.get(date);
+      if (!existing || record.createdAt > existing.createdAt) {
+        latestByDate.set(date, record);
+      }
+    });
+
+    // 按日期排序（从早到晚）
+    const dailyRecords = Array.from(latestByDate.values())
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+
+    return dailyRecords.map((record, recIdx) => {
       const moodKey = (record.moodType || 'calm').toLowerCase();
       const recordDate = record.createdAt.split('T')[0];
       const dayStudy = studyRecords.filter(
@@ -66,39 +78,54 @@ export default function MoodGarden({
       );
       const studyMin = dayStudy.reduce((sum, s) => sum + (s.duration || 0), 0);
 
-      let vit = (record.intensity ?? 3) / 5;
+      let vit = (record.intensity ?? 5) / 10;
       if (studyMin > 120) vit -= 0.35;
-      if (studyMin > 90 && (record.intensity ?? 3) <= 2) vit -= 0.2;
+      if (studyMin > 90 && (record.intensity ?? 5) <= 4) vit -= 0.2;
       vit = Math.max(0, Math.min(1, vit));
 
       const isWilted = vit < 0.45;
-      const recIdx = displayRecords.indexOf(record);
-      const totalRecs = displayRecords.length;
+      const totalRecs = dailyRecords.length;
       const age = totalRecs > 1 ? recIdx / (totalRecs - 1) : 0;
-      let stage: FlowerCell['stage'];
-      if (age < 0.15) stage = 'seed';
-      else if (age < 0.4) stage = 'sprout';
-      else if (age < 0.65) stage = 'bud';
-      else stage = 'bloom';
-
-      const sizeScale = 0.85 + age * 0.25 + (recIdx % 3) * 0.03;
+      const sizeScale = 0.85 + age * 0.2 + (vit - 0.5) * 0.15;
 
       return {
         record,
         moodKey,
         vitality: vit,
         isWilted,
-        stage,
         sizeScale,
         dateStr: recordDate.slice(5),
         studyMin,
       };
     });
-  }, [displayRecords, studyRecords]);
+  }, [sortedRecords, studyRecords]);
 
-  const selFlower = selected
-    ? flowers.find((f) => f.record.id === selected.id)
-    : null;
+  const selFlower = useMemo(() => {
+    if (!selected) return null;
+    const found = flowers.find((f) => f.record.id === selected.id);
+    if (found) return found;
+    // 如果记录被过滤了，直接从 selected 计算
+    const moodKey = (selected.moodType || 'calm').toLowerCase();
+    const recordDate = selected.createdAt.split('T')[0];
+    const dayStudy = studyRecords.filter(
+      (s) => s.createdAt.split('T')[0] === recordDate
+    );
+    const studyMin = dayStudy.reduce((sum, s) => sum + (s.duration || 0), 0);
+    let vit = (selected.intensity ?? 5) / 10;
+    if (studyMin > 120) vit -= 0.35;
+    if (studyMin > 90 && (selected.intensity ?? 5) <= 4) vit -= 0.2;
+    vit = Math.max(0, Math.min(1, vit));
+    return {
+      record: selected,
+      moodKey,
+      vitality: vit,
+      isWilted: vit < 0.45,
+      stage: 'bloom' as const,
+      sizeScale: 1,
+      dateStr: recordDate.slice(5),
+      studyMin,
+    };
+  }, [selected, flowers, studyRecords]);
 
   const observe = useCallback((intensity: number, studyMin: number) => {
     if (intensity >= 4 && studyMin > 60) return '今天情绪比较强烈，学习也投入了不少时间。记得给自己留点放松的空隙，紧绷太久弦会断。';
@@ -113,8 +140,6 @@ export default function MoodGarden({
     setSelected(null);
     onExploreInsight?.();
   }, [onExploreInsight]);
-
-  const emptyCells = Math.max(0, days - flowers.length);
 
   return (
     <div style={{ width: '100%' }}>
@@ -159,12 +184,11 @@ export default function MoodGarden({
           aspect-ratio: 1;
           border-radius: 14px;
           cursor: pointer;
-          overflow: hidden;
           transition: transform 0.2s ease, box-shadow 0.2s ease;
         }
         .farm-cell:hover {
           transform: translateY(-3px) scale(1.02);
-          box-shadow: 0 8px 25px rgba(120,80,20,0.25);
+          box-shadow: 0 8px 25px rgba(120, 80, 20, 0.25);
         }
         .farm-flower-svg {
           animation: farm-sway 4s ease-in-out infinite;
@@ -200,19 +224,41 @@ export default function MoodGarden({
           </span>
         </div>
         <div style={{
-          display: 'flex', alignItems: 'center', gap: 6,
-          background: 'linear-gradient(135deg, #f5e6c8, #e8d4a8)',
-          padding: '6px 14px',
-          borderRadius: 20,
-          fontSize: 13,
-          fontWeight: 600,
-          color: '#6a4a20',
-          boxShadow: '0 2px 8px rgba(180,140,60,0.2)',
+          display: 'flex', alignItems: 'center', gap: 8,
         }}>
-          <span>🌱</span>
-          <span>连续 {streak} 天</span>
-          {prosperity === 'lush' && <span style={{ marginLeft: 4 }}>· 🌳 茂盛</span>}
-          {prosperity === 'growing' && <span style={{ marginLeft: 4 }}>· 🌿 成长中</span>}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            background: 'linear-gradient(135deg, #f5e6c8, #e8d4a8)',
+            padding: '6px 14px',
+            borderRadius: 20,
+            fontSize: 13,
+            fontWeight: 600,
+            color: '#6a4a20',
+            boxShadow: '0 2px 8px rgba(180,140,60,0.2)',
+          }}>
+            <span>🌱</span>
+            <span>共 {flowers.length} 天记录</span>
+          </div>
+          <button
+            onClick={() => setExpanded(!expanded)}
+            style={{
+              display: flowers.length > 7 ? 'flex' : 'none',
+              alignItems: 'center', gap: 4,
+              background: 'rgba(255,255,255,0.8)',
+              padding: '6px 12px',
+              borderRadius: 16,
+              fontSize: 12,
+              fontWeight: 600,
+              color: '#6a5030',
+              border: 'none',
+              cursor: 'pointer',
+              boxShadow: '0 1px 4px rgba(0,0,0,0.1)',
+              transition: 'all 0.2s',
+            }}
+          >
+            <span>{expanded ? '收起' : '展开'}</span>
+            <span style={{ fontSize: 14 }}>{expanded ? '🔼' : '🔽'}</span>
+          </button>
         </div>
       </div>
 
@@ -220,9 +266,8 @@ export default function MoodGarden({
       <div style={{
         position: 'relative',
         borderRadius: 18,
-        overflow: 'hidden',
         background: 'linear-gradient(180deg, #b8d8e8 0%, #d4e8c8 25%, #c8dba0 45%, #8aaa60 70%, #6a8a48 100%)',
-        padding: '12px',
+        padding: '40px 12px 12px',
         boxShadow: 'inset 0 0 60px rgba(100,120,60,0.15), 0 4px 20px rgba(0,0,0,0.1)',
       }}>
         {/* 天空太阳 */}
@@ -233,8 +278,8 @@ export default function MoodGarden({
           zIndex: 1, opacity: 0.8,
         }} />
 
-        {/* 粒子光斑 */}
-        {(prosperity === 'lush' || prosperity === 'growing') && (
+        {/* 粒子光斑 - 记录较多时显示 */}
+        {flowers.length >= 4 && (
           <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 5 }}>
             {Array.from({ length: 8 }).map((_, i) => (
               <div
@@ -262,15 +307,10 @@ export default function MoodGarden({
           <path d="M0 100 Q80 55 160 70 Q240 45 320 65 Q370 55 400 75 L400 100 Z" fill="#6a8a45" />
         </svg>
 
-        {/* 农田网格 */}
+        {/* 农田网格 - 默认显示最近7天，展开显示全部 */}
         <div className="farm-grid">
-          {/* 花朵格子 */}
-          {flowers.map((f, i) => (
+          {(expanded ? flowers : flowers.slice(-7)).map((f, i) => (
             <FarmCell key={f.record.id || i} flower={f} onClick={() => setSelected(f.record)} />
-          ))}
-          {/* 空格子（未种植） */}
-          {Array.from({ length: emptyCells }).map((_, i) => (
-            <EmptyCell key={`empty-${i}`} />
           ))}
         </div>
 
@@ -348,7 +388,7 @@ export default function MoodGarden({
                 <div style={{ fontSize: 17, fontWeight: 600, color: '#4a2030', marginBottom: 2 }}>
                   {selFlower.record.moodType || '未知'}
                 </div>
-                <div style={{ fontSize: 12, color: '#886878' }}>强度 {selFlower.record.intensity}/5</div>
+                <div style={{ fontSize: 12, color: '#886878' }}>强度 {selFlower.record.intensity}/10</div>
                 {selFlower.record.note && (
                   <div style={{ fontSize: 11, color: '#a08090', marginTop: 4, fontStyle: 'italic' }}>
                     "{selFlower.record.note}"
@@ -494,35 +534,29 @@ function FarmCell({ flower, onClick }: { flower: FlowerCell; onClick: () => void
       </div>
 
       {/* ⚠️ 标记 */}
-      {flower.isWilted && flower.stage === 'bloom' && (
+      {flower.isWilted && (
         <div style={{
           position: 'absolute', top: 6, right: 6, fontSize: 16, zIndex: 5,
           filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.3))',
         }}>⚠️</div>
       )}
 
-      {/* 花朵层 */}
-      <div className={healthClass} style={{
-        position: 'absolute', bottom: '18%', left: '50%',
+      {/* 花朵层：外层负责定位（translateX 居中），内层负责摆动动画，
+          避免 animation 的 transform 覆盖掉内联的 translateX(-50%) 导致花朵错位 */}
+      <div style={{
+        position: 'absolute', bottom: '0', left: '50%',
         transform: 'translateX(-50%)',
-        width: `${55 * flower.sizeScale}px`,
-        height: `${75 * flower.sizeScale}px`,
+        width: `${70 * flower.sizeScale}px`,
+        height: `${110 * flower.sizeScale}px`,
         zIndex: 3,
+        overflow: 'visible',
       }}>
-        <div style={{
-          width: '100%', height: '100%',
-          animation: flower.stage === 'bloom' ? 'farm-sway 4s ease-in-out infinite' :
-                     flower.stage === 'bud' ? 'farm-sway-slow 5s ease-in-out infinite' : 'none',
-          transformOrigin: 'bottom center',
-        }}>
-          {flower.stage === 'seed' && <SeedSVG />}
-          {flower.stage === 'sprout' && <SproutSVG wilted={flower.isWilted} />}
-          {flower.stage === 'bud' && <BudSVG moodKey={flower.moodKey} wilted={flower.isWilted} />}
-          {flower.stage === 'bloom' && <FlowerSVG moodKey={flower.moodKey} wilted={flower.isWilted} vitality={flower.vitality} />}
+        <div className={healthClass} style={{ width: '100%', height: '100%' }}>
+          <FlowerSVG moodKey={flower.moodKey} wilted={flower.isWilted} vitality={flower.vitality} />
         </div>
 
         {/* 健康花光晕 */}
-        {!flower.isWilted && flower.stage === 'bloom' && (
+        {!flower.isWilted && (
           <div style={{
             position: 'absolute', top: '-10%', left: '-20%',
             width: '140%', height: '60%', borderRadius: '50%',
@@ -536,77 +570,7 @@ function FarmCell({ flower, onClick }: { flower: FlowerCell; onClick: () => void
   );
 }
 
-/* ═══════ 空格子 ═══════ */
-function EmptyCell() {
-  return (
-    <div style={{
-      position: 'relative', aspectRatio: '1', borderRadius: 14,
-      background: 'linear-gradient(180deg, rgba(160,120,70,0.4) 0%, rgba(120,90,50,0.5) 100%)',
-      border: '2px dashed rgba(100,70,40,0.3)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-    }}>
-      <svg viewBox="0 0 120 120" style={{ width: '100%', height: '100%', position: 'absolute', inset: 0, opacity: 0.5 }}>
-        {[0, 1, 2, 3, 4].map((row) => (
-          <line key={row} x1="15" y1={25 + row * 17} x2="105" y2={23 + row * 17} stroke="#6a4a28" strokeWidth="0.6" opacity="0.3" strokeLinecap="round" />
-        ))}
-      </svg>
-      <span style={{ fontSize: 22, opacity: 0.3 }}>🌱</span>
-    </div>
-  );
-}
-
-/* ═══════ 4个成长阶段 SVG ═══════ */
-function SeedSVG() {
-  return (
-    <svg viewBox="0 0 55 75" width="100%" height="100%" style={{ animation: 'farm-sprout 0.6s ease-out both' }}>
-      <path d="M27.5 75 Q27.5 60 27.5 50" stroke="#5a8a3a" strokeWidth="2.5" fill="none" strokeLinecap="round" />
-      <ellipse cx="22" cy="48" rx="8" ry="5" fill="#6aaa4a" transform="rotate(-30 22 48)" />
-      <ellipse cx="33" cy="48" rx="8" ry="5" fill="#5a9a3a" transform="rotate(30 33 48)" />
-      <ellipse cx="22" cy="46" rx="5" ry="2.5" fill="#7aba5a" transform="rotate(-30 22 46)" opacity="0.6" />
-      <ellipse cx="33" cy="46" rx="5" ry="2.5" fill="#6aaa4a" transform="rotate(30 33 46)" opacity="0.6" />
-    </svg>
-  );
-}
-
-function SproutSVG({ wilted }: { wilted: boolean }) {
-  const stemColor = wilted ? '#9a9070' : '#4a8a2a';
-  const leafColor = wilted ? '#8a9060' : '#5aaa3a';
-  return (
-    <svg viewBox="0 0 55 75" width="100%" height="100%" style={{ animation: 'farm-sprout 0.7s ease-out both' }}>
-      <path d="M27.5 75 Q26 55 28 35" stroke={stemColor} strokeWidth="2" fill="none" strokeLinecap="round" />
-      <ellipse cx="20" cy="45" rx="10" ry="5" fill={leafColor} transform="rotate(-35 20 45)" />
-      <ellipse cx="35" cy="38" rx="9" ry="4.5" fill={wilted ? '#7a8050' : '#4a9a2a'} transform="rotate(30 35 38)" />
-      <path d="M20 45 Q28 43 35 38" stroke={wilted ? '#7a8050' : '#3a8a2a'} strokeWidth="0.6" fill="none" opacity="0.5" />
-      <ellipse cx="27" cy="30" rx="3" ry="4" fill={wilted ? '#7a8050' : '#6aba4a'} opacity="0.7" />
-    </svg>
-  );
-}
-
-function BudSVG({ moodKey, wilted }: { moodKey: string; wilted: boolean }) {
-  const getBudColor = () => {
-    switch (moodKey) {
-      case 'happy': return wilted ? '#a08030' : '#e8c020';
-      case 'calm': return wilted ? '#909070' : '#f0e8b0';
-      case 'sad': return wilted ? '#707090' : '#8090c0';
-      case 'anxious': return wilted ? '#807090' : '#a080c0';
-      case 'angry': return wilted ? '#804030' : '#c03030';
-      case 'tired': return wilted ? '#908080' : '#e0a0b0';
-      default: return '#90b060';
-    }
-  };
-  const stemColor = wilted ? '#8a8a60' : '#4a8a30';
-  return (
-    <svg viewBox="0 0 55 75" width="100%" height="100%" style={{ animation: 'farm-grow 0.8s cubic-bezier(.34,1.56,.64,1) both' }}>
-      <path d="M27.5 75 Q27 50 27.5 22" stroke={stemColor} strokeWidth="2.2" fill="none" strokeLinecap="round" />
-      <ellipse cx="20" cy="50" rx="8" ry="4" fill={wilted ? '#7a8050' : '#5aaa3a'} transform="rotate(-30 20 50)" />
-      <ellipse cx="35" cy="42" rx="7" ry="3.5" fill={wilted ? '#6a7040' : '#4a9a2a'} transform="rotate(25 35 42)" />
-      <ellipse cx="27.5" cy="18" rx="6" ry="10" fill={getBudColor()} />
-      <ellipse cx="27.5" cy="15" rx="4.5" ry="7" fill={getBudColor()} opacity="0.7" />
-      <path d="M23 15 Q27.5 10 32 15" stroke={wilted ? '#6a6040' : (moodKey === 'happy' ? '#c0a010' : '#709030')} strokeWidth="1" fill="none" opacity="0.4" />
-    </svg>
-  );
-}
-
+/* 花朵统一以「盛放」形态渲染，按生命力区分健康 / 蔫垂 */
 /* ═══════ 6种花 SVG ═══════ */
 function FlowerSVG({ moodKey, wilted, vitality }: { moodKey: string; wilted: boolean; vitality: number }) {
   const opacity = wilted ? 0.6 : 1;

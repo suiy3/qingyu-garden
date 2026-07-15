@@ -262,17 +262,26 @@ function generateSuggestion(
   categories: string[],
   ctx: ReturnType<typeof getRecentMoodContext>
 ): { text: string; link: string } {
-  if (categories.includes('anxious') || categories.includes('sad')) {
-    return { text: '试试 3 分钟呼吸练习', link: '/action/breath' };
+  if (categories.includes('anxious')) {
+    return { text: '试试 3 分钟 478 呼吸法', link: '/action/breathing-478' };
+  }
+  if (categories.includes('sad')) {
+    return { text: '试试 3 分钟安全岛想象', link: '/action/firstaid-safeplace' };
   }
   if (categories.includes('tired')) {
-    return { text: '试试 3 分钟身体扫描', link: '/action/body-scan' };
+    return { text: '试试 3 分钟身体扫描', link: '/action/mindfulness-body' };
   }
   if (categories.includes('angry')) {
-    return { text: '试试 3 分钟情绪释放', link: '/action/emotion-release' };
+    return { text: '试试 3 分钟 5-4-3-2-1 接地法', link: '/action/firstaid-54321' };
   }
   if (categories.includes('study')) {
     return { text: '记录一下今天的学习', link: '/study' };
+  }
+  if (categories.includes('sleep')) {
+    return { text: '试试 3 分钟渐进式肌肉放松', link: '/action/relax-pmr' };
+  }
+  if (categories.includes('self')) {
+    return { text: '试试 3 分钟积极自我对话', link: '/action/cognitive-positive' };
   }
   if (ctx.negativeStreak >= 3) {
     return { text: '试试微行动，让自己好一点', link: '/actions' };

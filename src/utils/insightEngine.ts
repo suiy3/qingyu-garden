@@ -11,10 +11,19 @@ import { formatDate, getPastDays, getDayOfWeek } from '@/utils/date';
 const MOOD_SCORE: Record<MoodType, number> = {
   happy: 5,
   calm: 4,
-  tired: 2.5,
+  tired: 3,
   anxious: 2,
   sad: 1.5,
   angry: 1,
+};
+
+// 负面情绪严重度权重（基于情绪对心理状态的影响程度）
+// sad > angry/anxious > tired
+const NEGATIVE_WEIGHT: Record<string, number> = {
+  sad: 1.0,
+  angry: 0.8,
+  anxious: 0.75,
+  tired: 0.5,
 };
 
 // 负面情绪集合
@@ -255,48 +264,153 @@ export function analyzeWeeklyPattern(moodRecords: MoodRecord[]): Insight[] {
 
 /**
  * 连续负面情绪预警
+ * 基于情绪严重度权重、持续天数和趋势进行综合评估
  */
 export function analyzeNegativeStreak(moodRecords: MoodRecord[]): Insight[] {
   const insights: Insight[] = [];
 
   if (moodRecords.length < 3) return insights;
 
-  // 按日期排序，取最近7天
-  const recentMoods = [...moodRecords]
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    .slice(0, 15);
+  // 按日期排序
+  const sortedRecords = [...moodRecords].sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  );
 
-  const pastDays = getPastDays(7);
-  let negativeCount = 0;
-  const negativeDays: string[] = [];
-
-  pastDays.forEach((date) => {
-    const dayMoods = recentMoods.filter((m) => formatDate(m.createdAt) === date);
-    if (dayMoods.length > 0) {
-      const hasNegative = dayMoods.some(
-        (m) => NEGATIVE_MOODS.includes(m.moodType) && m.intensity >= 6
-      );
-      if (hasNegative) {
-        negativeCount++;
-        negativeDays.push(date);
-      }
+  // 计算每日负面情绪负荷分（0-10）
+  // 每天取最强的负面情绪 × 权重作为当日负荷
+  const dailyLoadMap = new Map<string, number>();
+  sortedRecords.forEach((m) => {
+    if (!NEGATIVE_MOODS.includes(m.moodType)) return;
+    const date = formatDate(m.createdAt);
+    const weight = NEGATIVE_WEIGHT[m.moodType] || 0.5;
+    const load = m.intensity * weight;
+    const current = dailyLoadMap.get(date) || 0;
+    if (load > current) {
+      dailyLoadMap.set(date, load);
     }
   });
 
-  if (negativeCount >= 3) {
+  // 取最近14天数据
+  const past14Days = getPastDays(14);
+  const recentLoads: { date: string; load: number }[] = [];
+  past14Days.forEach((date) => {
+    recentLoads.push({
+      date,
+      load: dailyLoadMap.get(date) || 0,
+    });
+  });
+
+  // 近7天数据
+  const last7Days = recentLoads.slice(-7);
+  const negativeDays7 = last7Days.filter((d) => d.load > 0).length;
+  const avgLoad7 =
+    last7Days.reduce((sum, d) => sum + d.load, 0) / Math.max(negativeDays7, 1);
+
+  // 趋势分析：近3天 vs 前3天（第4-6天）
+  const last3Days = recentLoads.slice(-3);
+  const prev3Days = recentLoads.slice(-6, -3);
+  const avgLast3 =
+    last3Days.reduce((sum, d) => sum + d.load, 0) /
+    Math.max(last3Days.filter((d) => d.load > 0).length, 1);
+  const avgPrev3 =
+    prev3Days.reduce((sum, d) => sum + d.load, 0) /
+    Math.max(prev3Days.filter((d) => d.load > 0).length, 1);
+
+  let trend: 'worsening' | 'improving' | 'stable' = 'stable';
+  if (avgLast3 > 0 && avgPrev3 > 0) {
+    if (avgLast3 / avgPrev3 > 1.3) trend = 'worsening';
+    else if (avgLast3 / avgPrev3 < 0.7) trend = 'improving';
+  } else if (avgLast3 > 0 && avgPrev3 === 0) {
+    trend = 'worsening';
+  } else if (avgLast3 === 0 && avgPrev3 > 0) {
+    trend = 'improving';
+  }
+
+  // 找到近7天出现最多的负面情绪类型
+  const moodCount: Record<string, number> = {};
+  const recentNegativeRecords = sortedRecords.filter((m) => {
+    const days = (Date.now() - new Date(m.createdAt).getTime()) / (1000 * 60 * 60 * 24);
+    return days <= 7 && NEGATIVE_MOODS.includes(m.moodType);
+  });
+  recentNegativeRecords.forEach((m) => {
+    moodCount[m.moodType] = (moodCount[m.moodType] || 0) + 1;
+  });
+  const topMood = Object.entries(moodCount).sort((a, b) => b[1] - a[1])[0];
+  const topMoodLabel = topMood
+    ? MOOD_CONFIG[topMood[0] as MoodType]?.label || topMood[0]
+    : '';
+
+  // 预警等级判断
+  // 高危：近7天有3天以上负荷 ≥ 5（较强负面），或连续5天有负面情绪
+  // 中危：近7天有4天以上负荷 ≥ 3（中等负面），或趋势恶化
+  // 低危：近7天有3天以上有负面情绪
+
+  let severity: 'low' | 'medium' | 'high' | null = null;
+  let title = '';
+  let detail = '';
+  let suggestion = '';
+
+  const highLoadDays7 = last7Days.filter((d) => d.load >= 5).length;
+  const midLoadDays7 = last7Days.filter((d) => d.load >= 3).length;
+
+  // 连续负面天数
+  let consecutiveNegative = 0;
+  for (let i = last7Days.length - 1; i >= 0; i--) {
+    if (last7Days[i].load > 0) consecutiveNegative++;
+    else break;
+  }
+
+  if (highLoadDays7 >= 3 || consecutiveNegative >= 5) {
+    severity = 'high';
+    title = '近期情绪状态需要重点关注';
+    detail = `近7天有 ${highLoadDays7} 天出现较强的负面情绪${consecutiveNegative >= 5 ? `，且已连续 ${consecutiveNegative} 天` : ''}。以${topMoodLabel}为主，平均负荷强度 ${avgLoad7.toFixed(1)}/10。`;
+    suggestion = '建议和信任的家人或朋友谈谈最近的感受。如果这种状态持续超过两周，或影响到正常的学习和生活，请寻求专业心理咨询的帮助。';
+  } else if (midLoadDays7 >= 4 || (trend === 'worsening' && midLoadDays7 >= 2)) {
+    severity = 'medium';
+    title = trend === 'worsening' ? '情绪有加重趋势，建议及时调整' : '近期负面情绪偏多，注意调节';
+    detail = `近7天有 ${midLoadDays7} 天出现中等及以上强度的负面情绪${trend === 'worsening' ? '，且近3天比前3天有加重趋势' : ''}。以${topMoodLabel}为主。`;
+    suggestion =
+      trend === 'worsening'
+        ? '情绪正在走下坡路，别硬撑。先停下来做几个深呼吸，或者试试微行动里的情绪急救练习。找机会做点让自己开心的小事。'
+        : '负面情绪出现得有点频繁，记得给自己留一点放松时间。可以试试微行动里的呼吸练习，或者写下来是什么让你不开心。';
+  } else if (negativeDays7 >= 3) {
+    severity = 'low';
+    title = '近期有一些小情绪，正常的';
+    detail = `近7天有 ${negativeDays7} 天记录了负面情绪，强度较轻，这是很正常的情绪波动。`;
+    suggestion = '偶尔的不开心就像天气变化，来了也会走。保持正常的作息，做点喜欢的事情，很快就会好起来。';
+  }
+
+  if (severity) {
+    const evidence: InsightEvidence[] = [
+      { label: '统计周期', value: '近 7 天' },
+      { label: '有负面情绪的天数', value: `${negativeDays7} 天` },
+      { label: '平均情绪负荷', value: `${avgLoad7.toFixed(1)} / 10` },
+      { label: '主要情绪', value: topMoodLabel || '—' },
+    ];
+
+    if (trend !== 'stable') {
+      evidence.push({
+        label: '趋势',
+        value: trend === 'worsening' ? '↑ 加重' : '↓ 好转',
+      });
+    }
+
+    if (consecutiveNegative >= 2) {
+      evidence.push({
+        label: '连续负面天数',
+        value: `${consecutiveNegative} 天`,
+      });
+    }
+
     insights.push({
       id: 'negative-streak',
       type: 'warning',
-      icon: '🌧️',
-      title: `近7天有${negativeCount}天情绪低落`,
-      detail: `最近一周你有 ${negativeCount} 天记录了较强的负面情绪。持续的压力可能会影响身心状态。`,
-      suggestion: '建议和信任的人聊聊，或者试试微行动中的呼吸练习。如果持续不舒服，可以寻求专业帮助。',
-      severity: negativeCount >= 5 ? 'high' : 'medium',
-      evidence: [
-        { label: '统计周期', value: '近 7 天' },
-        { label: '负面天数', value: `${negativeCount} 天` },
-        { label: '负面比例', value: `${Math.round(negativeCount / 7 * 100)}%` },
-      ],
+      icon: severity === 'high' ? '⛈️' : severity === 'medium' ? '🌧️' : '☁️',
+      title,
+      detail,
+      suggestion,
+      severity,
+      evidence,
       actionText: '试试微行动缓解',
       actionLink: '/actions',
     });

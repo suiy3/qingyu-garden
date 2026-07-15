@@ -77,6 +77,13 @@ export const ACTION_CATEGORY_CONFIG: Record<ActionCategory, { label: string; emo
   'first-aid': { label: '情绪急救', emoji: '🩹' },
   mindfulness: { label: '正念引导', emoji: '🧘' },
   relaxation: { label: '身体放松', emoji: '💆' },
+  cognitive: { label: '认知调整', emoji: '💡' },
+  sensory: { label: '感官调节', emoji: '🎵' },
+  creative: { label: '创意表达', emoji: '🎨' },
+  physical: { label: '运动活力', emoji: '🏃' },
+  social: { label: '社交连接', emoji: '💝' },
+  nature: { label: '自然疗愈', emoji: '🌿' },
+  fun: { label: '趣味解压', emoji: '🎉' },
 };
 
 export const STORAGE_KEYS = {

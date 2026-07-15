@@ -4,7 +4,7 @@ export type TriggerType = 'study' | 'relationship' | 'family' | 'health' | 'othe
 
 export type SubjectType = 'chinese' | 'math' | 'english' | 'physics' | 'chemistry' | 'other';
 
-export type ActionCategory = 'breathing' | 'first-aid' | 'mindfulness' | 'relaxation';
+export type ActionCategory = 'breathing' | 'first-aid' | 'mindfulness' | 'relaxation' | 'cognitive' | 'sensory' | 'creative' | 'physical' | 'social' | 'nature' | 'fun';
 
 export interface MoodRecord {
   id: string;
@@ -71,7 +71,6 @@ export interface UserProfile {
   nickname: string;
   grade: string;
   avatar: string;
-  parentPassword?: string;
 }
 
 export interface AppState {

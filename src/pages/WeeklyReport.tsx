@@ -1,6 +1,6 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Share2, TrendingUp, TrendingDown, Minus, Sparkles, Heart, BookOpen } from 'lucide-react';
+import { Share2, TrendingUp, TrendingDown, Minus, Sparkles, Heart, BookOpen, Copy, X, Check, MessageCircle } from 'lucide-react';
 import PageContainer from '@/components/layout/PageContainer';
 import { useAppStore } from '@/store/useAppStore';
 import { generateWeeklyReport } from '@/utils/weeklyReport';
@@ -9,10 +9,51 @@ import { cn } from '@/lib/utils';
 export default function WeeklyReportPage() {
   const navigate = useNavigate();
   const { moodRecords, studyRecords } = useAppStore();
+  const [showShareSheet, setShowShareSheet] = useState(false);
+  const [copied, setCopied] = useState(false);
   const report = useMemo(
     () => generateWeeklyReport(moodRecords, studyRecords),
     [moodRecords, studyRecords]
   );
+
+  const shareText = useMemo(() => {
+    if (!report) return '';
+    return `【晴语·周成长报告】${report.dateRange}
+
+🌤️ 心情：${report.mood.dominantMood.label}（均分 ${report.mood.avgScore}/5）
+📚 学习：${report.study.totalMinutes} 分钟 / ${report.study.recordDays} 天
+✨ 好心情天数：${report.mood.positiveDays} 天
+💡 本周亮点：${report.highlights[0]}
+
+🌸 ${report.growthQuote}
+
+—— 晴语·青少年成长伙伴`;
+  }, [report]);
+
+  const handleCopyText = async () => {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shareText);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = shareText;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+    }
+  };
+
+  const handleShare = () => {
+    setShowShareSheet(true);
+  };
 
   if (!report) {
     return (
@@ -41,13 +82,6 @@ export default function WeeklyReportPage() {
   };
   const tc = trendConfig[report.mood.trend];
   const TrendIcon = tc.icon;
-
-  const handleShare = () => {
-    // 简单的分享：复制报告内容到剪贴板
-    const text = `【晴语周报】${report.dateRange}\n\n心情：${report.mood.dominantMood.label} ${report.mood.avgScore}/5\n学习：${report.study.totalMinutes}分钟\n\n亮点：${report.highlights[0]}\n\n${report.growthQuote}`;
-    navigator.clipboard?.writeText(text);
-    alert('报告已复制到剪贴板，可以粘贴分享给家人');
-  };
 
   return (
     <PageContainer title="周成长报告" showBack>
@@ -205,6 +239,91 @@ export default function WeeklyReportPage() {
           分享给家人
         </button>
       </div>
+
+      {/* 分享弹窗 */}
+      {showShareSheet && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center"
+          onClick={() => setShowShareSheet(false)}
+        >
+          <div className="absolute inset-0 bg-black/50" />
+          <div
+            className="relative w-full max-w-md bg-white rounded-t-3xl p-5 pb-8 animate-slideUp"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-bold text-gray-900">分享给家人</h3>
+              <button
+                onClick={() => setShowShareSheet(false)}
+                className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center"
+              >
+                <X size={16} className="text-gray-500" />
+              </button>
+            </div>
+
+            <p className="text-xs text-gray-500 mb-4">
+              把孩子的成长报告分享给家人，一起见证进步
+            </p>
+
+            {/* 分享方式 */}
+            <div className="grid grid-cols-4 gap-4 mb-5">
+              <button
+                onClick={handleCopyText}
+                className="flex flex-col items-center gap-2"
+              >
+                <div className={cn(
+                  'w-12 h-12 rounded-2xl flex items-center justify-center transition-all',
+                  copied ? 'bg-emerald-500' : 'bg-slate-100'
+                )}>
+                  {copied ? (
+                    <Check size={20} className="text-white" />
+                  ) : (
+                    <Copy size={20} className="text-slate-600" />
+                  )}
+                </div>
+                <span className="text-xs text-gray-600">
+                  {copied ? '已复制' : '复制文字'}
+                </span>
+              </button>
+
+              <button className="flex flex-col items-center gap-2">
+                <div className="w-12 h-12 rounded-2xl bg-green-500 flex items-center justify-center">
+                  <MessageCircle size={20} className="text-white" />
+                </div>
+                <span className="text-xs text-gray-600">微信</span>
+              </button>
+
+              <button
+                onClick={handleCopyText}
+                className="flex flex-col items-center gap-2"
+              >
+                <div className="w-12 h-12 rounded-2xl bg-blue-500 flex items-center justify-center">
+                  <Share2 size={20} className="text-white" />
+                </div>
+                <span className="text-xs text-gray-600">QQ</span>
+              </button>
+
+              <button
+                onClick={handleCopyText}
+                className="flex flex-col items-center gap-2"
+              >
+                <div className="w-12 h-12 rounded-2xl bg-purple-500 flex items-center justify-center">
+                  <span className="text-base">📱</span>
+                </div>
+                <span className="text-xs text-gray-600">更多</span>
+              </button>
+            </div>
+
+            {/* 预览 */}
+            <div className="bg-gray-50 rounded-xl p-3 mb-1">
+              <p className="text-[10px] text-gray-400 mb-2">分享内容预览</p>
+              <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-line">
+                {shareText}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </PageContainer>
   );
 }

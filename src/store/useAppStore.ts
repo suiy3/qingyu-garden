@@ -14,7 +14,7 @@ const getInitialState = (): AppState => {
   const saved = loadAppState();
   if (saved) {
     return {
-      user: defaultUser,
+      user: saved.user ? { ...defaultUser, ...saved.user } : defaultUser,
       moodRecords: saved.moodRecords || [],
       studyRecords: saved.studyRecords || [],
       knowledgeNotes: saved.knowledgeNotes || [],
@@ -55,8 +55,7 @@ interface AppStore extends AppState {
   deleteKnowledgeNote: (id: string) => void;
   addActionLog: (actionId: string, actionName: string, duration: number, completed: boolean) => void;
   updateUser: (user: Partial<UserProfile>) => void;
-  setParentPassword: (password: string) => void;
-  validateParentPassword: (password: string) => boolean;
+  
   clearAllData: () => void;
   resetToMockData: () => void;
   importData: (data: Partial<AppState>) => boolean;
@@ -191,21 +190,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     });
   },
 
-  setParentPassword: (password) => {
-    set((state) => {
-      const newState = {
-        ...state,
-        user: { ...state.user, parentPassword: password },
-      };
-      saveAppState(newState);
-      return newState;
-    });
-  },
-
-  validateParentPassword: (password) => {
-    const state = get();
-    return state.user.parentPassword === password;
-  },
+  
 
   clearAllData: () => {
     const newState = {

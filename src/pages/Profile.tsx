@@ -40,12 +40,19 @@ export default function Profile() {
 
   const stats = [
     { icon: <Calendar size={20} />, label: '总记录天数', value: uniqueDays, color: 'text-primary-500', bg: 'bg-primary-100' },
-    { icon: <Heart size={20} />, label: '情绪记录', value: moodRecords.length, color: 'text-rose-500', bg: 'bg-rose-100' },
     { icon: <Clock size={20} />, label: '学习时长', value: formatDuration(totalStudyMinutes), color: 'text-sky-500', bg: 'bg-sky-100' },
     { icon: <Sparkles size={20} />, label: '完成微行动', value: completedActions, color: 'text-mint-500', bg: 'bg-mint-100' },
   ];
 
   const menuItems = [
+    {
+      icon: <Heart size={20} />,
+      label: '情绪记录',
+      subLabel: `${moodRecords.length} 条记录`,
+      onClick: () => navigate('/mood-history'),
+      iconBg: 'bg-rose-100',
+      iconColor: 'text-rose-500',
+    },
     {
       icon: <Settings size={20} />,
       label: '个人资料设置',
@@ -159,9 +166,9 @@ export default function Profile() {
 
       <div className="px-4 -mt-16 space-y-4">
         <Card className="bg-white">
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             {stats.map((stat, index) => (
-              <div key={index} className="text-center">
+              <div key={index} className="text-center w-full">
                 <div className={cn('w-10 h-10 rounded-xl mx-auto mb-2 flex items-center justify-center', stat.bg, stat.color)}>
                   {stat.icon}
                 </div>
@@ -185,7 +192,12 @@ export default function Profile() {
               <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center', item.iconBg, item.iconColor)}>
                 {item.icon}
               </div>
-              <span className="flex-1 text-left text-gray-700 font-medium">{item.label}</span>
+              <div className="flex-1 text-left">
+                <span className="text-gray-700 font-medium">{item.label}</span>
+                {item.subLabel && (
+                  <p className="text-gray-400 text-xs mt-0.5">{item.subLabel}</p>
+                )}
+              </div>
               <ChevronRight size={18} className="text-gray-400" />
             </button>
           ))}

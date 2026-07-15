@@ -13,6 +13,13 @@ const categories: { key: ActionCategory | 'all'; label: string; emoji: string }[
   { key: 'first-aid', label: '情绪急救', emoji: '🩹' },
   { key: 'mindfulness', label: '正念引导', emoji: '🧘' },
   { key: 'relaxation', label: '身体放松', emoji: '💆' },
+  { key: 'cognitive', label: '认知调整', emoji: '💡' },
+  { key: 'sensory', label: '感官调节', emoji: '🎵' },
+  { key: 'creative', label: '创意表达', emoji: '🎨' },
+  { key: 'physical', label: '运动活力', emoji: '🏃' },
+  { key: 'social', label: '社交连接', emoji: '💝' },
+  { key: 'nature', label: '自然疗愈', emoji: '🌿' },
+  { key: 'fun', label: '趣味解压', emoji: '🎉' },
 ];
 
 export default function ActionCenter() {
