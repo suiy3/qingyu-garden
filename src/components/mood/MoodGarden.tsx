@@ -544,10 +544,10 @@ function FarmCell({ flower, onClick }: { flower: FlowerCell; onClick: () => void
       {/* 花朵层：外层负责定位（translateX 居中），内层负责摆动动画，
           避免 animation 的 transform 覆盖掉内联的 translateX(-50%) 导致花朵错位 */}
       <div style={{
-        position: 'absolute', bottom: '0', left: '50%',
-        transform: 'translateX(-50%)',
-        width: `${70 * flower.sizeScale}px`,
-        height: `${110 * flower.sizeScale}px`,
+        position: 'absolute', top: '55%', left: '50%',
+        transform: 'translate(-50%, -50%)',
+        width: `${45 * flower.sizeScale}%`,
+        height: `${70 * flower.sizeScale}%`,
         zIndex: 3,
         overflow: 'visible',
       }}>
