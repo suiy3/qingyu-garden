@@ -1,333 +1,221 @@
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Flame, ChevronRight, Sparkles, Brain, Shield, ArrowRight, BookOpen } from 'lucide-react';
-import { useAppStore } from '@/store/useAppStore';
-import { getGreeting, formatDate, getDayOfWeek, formatDuration } from '@/utils/date';
-import { microActions } from '@/data/microActions';
-import { MOOD_CONFIG } from '@/utils/constants';
-import { generateAllInsights, calculateResilienceScore, Insight } from '@/utils/insightEngine';
+import {
+  ArrowRight,
+  BarChart3,
+  BookOpenCheck,
+  CalendarDays,
+  CheckCircle2,
+  ChevronRight,
+  CircleHelp,
+  Clock3,
+  MessageCircle,
+  ShieldCheck,
+  Sparkles,
+  Sprout,
+} from 'lucide-react';
 import BottomNav from '@/components/layout/BottomNav';
-import { cn } from '@/lib/utils';
+import { useAppStore } from '@/store/useAppStore';
+import { formatDate, getDayOfWeek, getGreeting } from '@/utils/date';
+import { MOOD_CONFIG } from '@/utils/constants';
+import { generateAllInsights, Insight } from '@/utils/insightEngine';
 
-// 今日主角洞察：优先跨变量关联（correlation/pattern），最炸的反直觉规律放首位
-function pickHeroInsight(insights: Insight[]): Insight | undefined {
-  if (insights.length === 0) return undefined;
-  const priority: Record<string, number> = {
-    correlation: 3,
-    pattern: 2.5,
-    warning: 2,
-    positive: 1,
-  };
-  return [...insights].sort(
-    (a, b) => (priority[b.type] ?? 0) - (priority[a.type] ?? 0)
-  )[0];
+function pickHeroInsight(insights: Insight[]) {
+  const priority: Record<string, number> = { correlation: 4, pattern: 3, warning: 2, positive: 1 };
+  return [...insights].sort((a, b) => (priority[b.type] ?? 0) - (priority[a.type] ?? 0))[0];
 }
-
-// 情绪 → 天气场景（让首页有画面感，替代干巴巴的 emoji+数字）
-const MOOD_WEATHER: Record<
-  string,
-  { sky: string; emoji: string; grad: string; quote: string }
-> = {
-  happy: { sky: '晴', emoji: '☀️', grad: 'from-amber-300 via-orange-200 to-rose-100', quote: '阳光正好，今天很明亮' },
-  calm: { sky: '多云', emoji: '⛅', grad: 'from-sky-200 via-indigo-100 to-purple-50', quote: '风很轻，你很稳' },
-  anxious: { sky: '雷阵雨', emoji: '⛈️', grad: 'from-indigo-300 via-purple-200 to-slate-100', quote: '心里有点响，先深呼吸' },
-  sad: { sky: '小雨', emoji: '🌧️', grad: 'from-blue-300 via-slate-200 to-sky-100', quote: '让它下一会儿，会停的' },
-  angry: { sky: '暴雨', emoji: '🌩️', grad: 'from-rose-400 via-red-200 to-orange-100', quote: '先缓缓，不急着放晴' },
-  tired: { sky: '阴', emoji: '🌫️', grad: 'from-gray-300 via-slate-200 to-blue-50', quote: '该歇歇了' },
-};
 
 export default function Home() {
   const navigate = useNavigate();
-  const { user, moodRecords, studyRecords, knowledgeNotes } = useAppStore();
-
-  const todayStr = formatDate(new Date());
-
-  const todayMoodRecords = moodRecords.filter(
-    (record) => formatDate(record.createdAt) === todayStr
-  );
-  const todayMood = todayMoodRecords.length > 0 ? todayMoodRecords[0] : null;
+  const { user, moodRecords, studyRecords, knowledgeNotes, isFirstLaunch } = useAppStore();
+  const today = formatDate(new Date());
+  const todayMood = moodRecords.find((record) => formatDate(record.createdAt) === today);
+  const todayStudyRecords = studyRecords.filter((record) => formatDate(record.createdAt) === today);
+  const todayStudyMinutes = todayStudyRecords.reduce((total, record) => total + record.duration, 0);
+  const hasStudyCheckIn = todayStudyRecords.length > 0;
   const moodConfig = todayMood ? MOOD_CONFIG[todayMood.moodType] : null;
+  const isComplete = Boolean(todayMood && hasStudyCheckIn);
+  const questionCount = knowledgeNotes.filter((note) => note.noteType === 'question').length;
+  const normalNoteCount = knowledgeNotes.length - questionCount;
 
-  let streakDays = 0;
-  const sortedUniqueDates = [...new Set(moodRecords.map((r) => formatDate(r.createdAt)))].sort().reverse();
-  const today = new Date();
-  for (let i = 0; i < 365; i++) {
-    const d = new Date(today);
-    d.setDate(d.getDate() - i);
-    const dateStr = formatDate(d);
-    if (sortedUniqueDates.includes(dateStr)) {
-      streakDays++;
-    } else if (i > 0) {
-      break;
-    }
-  }
-
-  const todayStudyMinutes = studyRecords
-    .filter((record) => formatDate(record.createdAt) === todayStr)
-    .reduce((sum, record) => sum + record.duration, 0);
-
-  const weekStart = new Date();
-  weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-  const weekStartStr = formatDate(weekStart);
-  const weekStudyMinutes = studyRecords
-    .filter((record) => formatDate(record.createdAt) >= weekStartStr)
-    .reduce((sum, record) => sum + record.duration, 0);
-
-  const topActions = microActions.slice(0, 4);
-
-  const dateDisplay = `${formatDate(new Date())} ${getDayOfWeek(new Date())}`;
-
-  // 智能洞察
-  const insights = useMemo<Insight[]>(
+  const insights = useMemo(
     () => generateAllInsights(moodRecords, studyRecords),
     [moodRecords, studyRecords]
   );
-  const resilienceScore = useMemo(
-    () => calculateResilienceScore(moodRecords),
-    [moodRecords]
-  );
-  const heroInsight = pickHeroInsight(insights);
+  const heroInsight = useMemo(() => pickHeroInsight(insights), [insights]);
 
-  // 今日心情天气
-  const todayWeather = todayMood
-    ? MOOD_WEATHER[todayMood.moodType]
-    : { sky: '待记录', emoji: '🌤️', grad: 'from-primary-400 to-indigo-300', quote: '今天的心情天气，由你来记录' };
+  const streakDays = useMemo(() => {
+    const recordedDates = new Set(moodRecords.map((record) => formatDate(record.createdAt)));
+    let count = 0;
+    for (let offset = 0; offset < 365; offset++) {
+      const date = new Date();
+      date.setDate(date.getDate() - offset);
+      if (!recordedDates.has(formatDate(date))) break;
+      count += 1;
+    }
+    return count;
+  }, [moodRecords]);
+
+  const quickLinks = [
+    { label: '看看规律', note: '心情 × 学习', icon: BarChart3, color: 'bg-indigo-50 text-indigo-600', path: '/insight' },
+    { label: '缓一缓', note: '3 分钟微行动', icon: Sparkles, color: 'bg-amber-50 text-amber-600', path: '/actions' },
+    { label: '本周小结', note: '看见自己的变化', icon: CalendarDays, color: 'bg-emerald-50 text-emerald-600', path: '/weekly-report' },
+    { label: '和晴语聊聊', note: '随时说几句', icon: MessageCircle, color: 'bg-rose-50 text-rose-600', path: '/chat' },
+  ];
 
   return (
-    <div className="min-h-screen bg-warm-50 pb-24">
-      {/* 顶部问候 */}
-      <div className="relative bg-gradient-to-br from-primary-400 via-primary-500 to-primary-600 px-5 pt-12 pb-24 overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl transform translate-x-20 -translate-y-20" />
-        <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/10 rounded-full blur-2xl transform -translate-x-16 translate-y-16" />
-
-        <div className="relative z-10">
-          <div className="flex items-center justify-between mb-2">
+    <div className="min-h-screen bg-warm-50 pb-28">
+      <header className="relative overflow-hidden bg-gradient-to-br from-orange-400 via-primary-500 to-rose-400 px-5 pb-24 pt-11 text-white">
+        <div className="absolute -right-16 -top-20 h-64 w-64 rounded-full bg-white/15 blur-3xl" />
+        <div className="relative mx-auto max-w-xl">
+          <p className="text-sm text-white/80">{getGreeting()} · {getDayOfWeek(new Date())}</p>
+          <div className="mt-1 flex items-center justify-between">
             <div>
-              <p className="text-white/80 text-sm">{getGreeting()}，</p>
-              <h1 className="text-white text-2xl font-bold mt-1">{user.nickname}</h1>
+              <h1 className="text-2xl font-bold">{user.nickname}，今天还好吗？</h1>
+              <p className="mt-2 text-sm text-white/80">不用想很久，真实就好。</p>
             </div>
-            <div className="text-5xl animate-float">{user.avatar}</div>
+            <div className="text-5xl">{user.avatar}</div>
           </div>
-          <p className="text-white/70 text-sm mt-2">{dateDisplay}</p>
         </div>
-      </div>
+      </header>
 
-      <div className="px-4 -mt-16 space-y-5">
-        {/* ① 情绪天气卡（视觉主角：画面感 + 双轨合一） */}
-        <div
-          onClick={() => navigate('/mood-record')}
-          className={cn(
-            'relative rounded-3xl overflow-hidden cursor-pointer active:scale-[0.98] transition-transform shadow-lg bg-gradient-to-br',
-            todayWeather.grad
-          )}
-        >
-          <div className="absolute -top-1 right-3 text-6xl opacity-25 select-none">
-            {todayWeather.emoji}
-          </div>
-          <div className="relative p-5">
-            <div className="flex items-end justify-between">
+      <main className="relative mx-auto -mt-16 max-w-xl space-y-5 px-4">
+        <section className="overflow-hidden rounded-[28px] bg-white shadow-soft-lg">
+          <div className="p-5">
+            <div className="flex items-center justify-between">
               <div>
-                <p className="text-white/80 text-xs">今日心情天气</p>
-                <h2 className="text-white text-3xl font-bold mt-0.5 leading-tight">
-                  {todayWeather.sky}
+                <div className="flex items-center gap-2 text-xs font-semibold text-primary-600">
+                  <Clock3 size={14} /> 一分钟双轨记录
+                </div>
+                <h2 className="mt-2 text-xl font-bold text-gray-800">
+                  {isComplete ? '今天已经好好记录过了' : '把心情和学习放在一起'}
                 </h2>
+                <p className="mt-1 text-sm text-gray-500">
+                  {isComplete ? '想补充一条也可以，晴语会继续陪你看见规律。' : '只需三小步，记录今天真实的状态。'}
+                </p>
               </div>
-              <div className="text-right">
-                <div className="text-4xl">{todayMood ? moodConfig!.emoji : '🌤️'}</div>
-                <p className="text-white/90 text-sm font-medium mt-1">
-                  {moodConfig ? moodConfig.label : '还没记'}
+              <div className="ml-3 flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-warm-100 to-orange-100 text-3xl">
+                {isComplete ? '🌱' : '🌤️'}
+              </div>
+            </div>
+
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <div className="rounded-2xl bg-rose-50 p-3">
+                <p className="text-[11px] text-rose-400">今日心情</p>
+                <p className="mt-1 text-sm font-semibold text-gray-700">
+                  {moodConfig ? `${moodConfig.emoji} ${moodConfig.label}` : '○ 等你记录'}
+                </p>
+              </div>
+              <div className="rounded-2xl bg-sky-50 p-3">
+                <p className="text-[11px] text-sky-500">今日学习</p>
+                <p className="mt-1 text-sm font-semibold text-gray-700">
+                  {hasStudyCheckIn ? (todayStudyMinutes > 0 ? `📚 ${todayStudyMinutes} 分钟` : '🌙 今天休息') : '○ 等你记录'}
                 </p>
               </div>
             </div>
 
-            <p className="text-white/90 text-sm mt-3 leading-relaxed">{todayWeather.quote}</p>
-
-            {/* 双轨小条：今日心情 × 今日学习 */}
-            <div className="mt-4 flex items-center gap-3 bg-white/25 rounded-2xl p-3 backdrop-blur-sm">
-              <div className="flex-1 flex items-center gap-2">
-                <span className="text-lg">💗</span>
-                <div className="min-w-0">
-                  <p className="text-white/70 text-[10px]">今日心情</p>
-                  <p className="text-white text-sm font-semibold truncate">
-                    {moodConfig ? moodConfig.label : '未记录'}
-                  </p>
-                </div>
-              </div>
-              <div className="w-px h-8 bg-white/30" />
-              <div className="flex-1 flex items-center gap-2">
-                <span className="text-lg">📚</span>
-                <div className="min-w-0">
-                  <p className="text-white/70 text-[10px]">今日学习</p>
-                  <p className="text-white text-sm font-semibold truncate">{todayStudyMinutes} 分钟</p>
-                </div>
-              </div>
-            </div>
-
-            {/* 连续天数 + 本周时长 */}
-            <div className="mt-3 flex items-center gap-1.5 text-white/85 text-xs">
-              <Flame size={13} className="text-orange-200" />
-              <span>连续记录 {streakDays} 天</span>
-              <span className="opacity-50">·</span>
-              <span>本周已学 {formatDuration(weekStudyMinutes)}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* ② 晴语今日发现（唯一 AI hero，优先跨变量洞察） */}
-        {heroInsight && (
-          <div
-            onClick={() => navigate('/insight')}
-            className="relative rounded-3xl overflow-hidden cursor-pointer active:scale-[0.98] transition-transform shadow-lg bg-gradient-to-br from-purple-600 via-indigo-600 to-blue-600"
-          >
-            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl transform translate-x-8 -translate-y-8" />
-
-            <div className="relative p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
-                  <Brain size={16} className="text-white" />
-                </div>
-                <span className="text-white text-sm font-medium">晴语发现</span>
-                <span className="ml-auto text-white/60 text-xs flex items-center gap-0.5">
-                  查看全部 <ChevronRight size={12} />
-                </span>
-              </div>
-
-              <div className="flex items-start gap-3">
-                <div className="text-3xl flex-shrink-0">{heroInsight.icon}</div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-white font-bold text-base leading-snug">
-                    {heroInsight.title}
-                  </h3>
-                  <p className="text-white/75 text-xs mt-1.5 leading-relaxed line-clamp-3">
-                    {heroInsight.detail}
-                  </p>
-                </div>
-              </div>
-
-              {/* 韧性分数迷你条 */}
-              <div className="mt-4 flex items-center gap-2">
-                <Shield size={12} className="text-white/60" />
-                <span className="text-white/60 text-xs">情绪韧性</span>
-                <div className="flex-1 h-1.5 rounded-full bg-white/20 overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-yellow-300 to-pink-300"
-                    style={{ width: `${resilienceScore.total}%`, transition: 'width 1s ease-out' }}
-                  />
-                </div>
-                <span className="text-white text-xs font-bold">{resilienceScore.total}</span>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ②.5 晴语对话入口 */}
-        <div
-          onClick={() => navigate('/chat')}
-          className="relative rounded-2xl overflow-hidden cursor-pointer active:scale-[0.98] transition-transform bg-gradient-to-br from-purple-50 via-pink-50 to-orange-50 border border-purple-100 p-4"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-orange-200 to-amber-200 flex items-center justify-center text-2xl flex-shrink-0">
-              🌱
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold text-gray-800">和晴语聊聊</h3>
-                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-600 font-medium">
-                  AI 陪伴
-                </span>
-              </div>
-              <p className="text-xs text-gray-500 mt-0.5 truncate">
-                说说话，心里会轻一点
-              </p>
-            </div>
-            <ArrowRight size={18} className="text-purple-300 flex-shrink-0" />
-          </div>
-        </div>
-
-        {/* ②.55 知识笔记入口 */}
-        <div
-          onClick={() => navigate('/knowledge')}
-          className="relative rounded-2xl overflow-hidden cursor-pointer active:scale-[0.98] transition-transform bg-gradient-to-br from-sky-50 to-cyan-50 border border-sky-100 p-4"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-sky-200 to-cyan-200 flex items-center justify-center text-2xl flex-shrink-0">
-              📒
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold text-gray-800">知识笔记</h3>
-                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-600 font-medium">
-                  {knowledgeNotes.length} 篇
-                </span>
-              </div>
-              <p className="text-xs text-gray-500 mt-0.5 truncate">
-                学过的知识，记下来才是自己的
-              </p>
-            </div>
-            <ArrowRight size={18} className="text-sky-300 flex-shrink-0" />
-          </div>
-        </div>
-
-        {/* ②.6 周成长报告入口 */}
-        <div
-          onClick={() => navigate('/weekly-report')}
-          className="relative rounded-2xl overflow-hidden cursor-pointer active:scale-[0.98] transition-transform bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 p-4 text-white"
-        >
-          <div className="absolute -top-1 -right-1 text-5xl opacity-20">📊</div>
-          <div className="relative flex items-center gap-3">
-            <div className="flex-1">
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold">本周成长报告</h3>
-                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/20 text-white font-medium">
-                  已生成
-                </span>
-              </div>
-              <p className="text-xs text-white/70 mt-0.5">
-                看看这周的情绪和学习成长
-              </p>
-            </div>
-            <ArrowRight size={18} className="text-white/50 flex-shrink-0" />
-          </div>
-        </div>
-
-        {/* ③ 微行动推荐（一行横滑，缩窄） */}
-        <div>
-          <div className="flex items-center justify-between mb-3 px-1">
-            <div className="flex items-center gap-2">
-              <Sparkles size={18} className="text-primary-500" />
-              <h2 className="text-lg font-bold text-gray-800">微行动推荐</h2>
-            </div>
             <button
-              onClick={() => navigate('/actions')}
-              className="flex items-center gap-1 text-primary-500 text-sm font-medium hover:text-primary-600 transition-colors"
+              onClick={() => navigate('/check-in')}
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary-400 to-primary-600 px-5 py-3.5 font-semibold text-white shadow-lg shadow-orange-200/60 active:scale-[0.98]"
             >
-              查看全部
-              <ChevronRight size={16} />
+              {isComplete ? '再记一条' : '开始今日记录'} <ArrowRight size={18} />
             </button>
           </div>
-
-          <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2 -mx-4 px-4">
-            {topActions.map((action) => (
-              <div
-                key={action.id}
-                onClick={() => navigate(`/action/${action.id}`)}
-                className={cn(
-                  'flex-shrink-0 w-36 p-4 rounded-2xl cursor-pointer',
-                  'bg-gradient-to-br',
-                  action.gradient,
-                  'shadow-soft active:scale-[0.97] transition-all duration-200'
-                )}
-              >
-                <div className="text-3xl mb-2">{action.icon}</div>
-                <h3 className="text-white font-bold text-sm mb-1">{action.name}</h3>
-                <p className="text-white/80 text-xs">
-                  {Math.floor(action.duration / 60)}分钟
-                </p>
-              </div>
-            ))}
+          <div className="flex items-center justify-between bg-warm-50 px-5 py-3 text-xs text-gray-500">
+            <span className="flex items-center gap-1.5"><Sprout size={14} className="text-emerald-500" /> 连续记录 {streakDays} 天</span>
+            <span>{isComplete ? <span className="flex items-center gap-1 text-emerald-600"><CheckCircle2 size={14} /> 今日完成</span> : '完成后种下一株心情植物'}</span>
           </div>
-        </div>
-      </div>
+        </section>
+
+        {isFirstLaunch && (
+          <section className="rounded-2xl border border-indigo-100 bg-indigo-50 px-4 py-3">
+            <div className="flex items-start gap-3">
+              <span className="rounded-full bg-indigo-100 px-2 py-1 text-[10px] font-bold text-indigo-600">体验模式</span>
+              <p className="flex-1 text-xs leading-5 text-indigo-700">现在展示的是示例记录，方便你体验完整功能。第一次完成自己的记录后，示例数据会自动清空。</p>
+            </div>
+          </section>
+        )}
+
+        <section className="relative overflow-hidden rounded-3xl bg-slate-900 shadow-soft-lg">
+          <img src={`${import.meta.env.BASE_URL}garden/bg-home.jpg`} alt="" className="absolute inset-0 h-full w-full object-cover opacity-55" />
+          <div className="absolute inset-0 bg-gradient-to-r from-slate-950/90 via-slate-900/75 to-emerald-900/20" />
+          <img src={`${import.meta.env.BASE_URL}garden/flower-happy-home.png`} alt="" className="absolute -bottom-5 right-3 h-32 w-24 object-contain drop-shadow-lg" />
+          <img src={`${import.meta.env.BASE_URL}garden/flower-calm-home.png`} alt="" className="absolute -bottom-4 right-20 h-24 w-20 object-contain opacity-80" />
+          <div className="relative p-5 pr-24 text-white">
+            <p className="flex items-center gap-2 text-xs font-semibold text-emerald-200"><BookOpenCheck size={15} /> 学习沉淀</p>
+            <h2 className="mt-2 text-xl font-bold">知识点与错题本</h2>
+            <p className="mt-1 text-xs leading-5 text-white/65">记录不只停在“学了多久”，还要留下真正学会了什么。</p>
+            <div className="mt-4 flex gap-3 text-xs">
+              <span className="rounded-full bg-white/15 px-3 py-1.5">📝 知识点 {normalNoteCount}</span>
+              <span className="rounded-full bg-white/15 px-3 py-1.5">❓ 错题 {questionCount}</span>
+            </div>
+          </div>
+          <div className="relative grid grid-cols-2 border-t border-white/10 bg-black/15">
+            <button onClick={() => navigate('/knowledge')} className="flex items-center justify-center gap-1.5 py-3 text-xs font-semibold text-white"><BookOpenCheck size={15} /> 打开知识本</button>
+            <button onClick={() => navigate('/knowledge/new?type=question')} className="flex items-center justify-center gap-1.5 border-l border-white/10 py-3 text-xs font-semibold text-amber-200"><CircleHelp size={15} /> 记一道错题</button>
+          </div>
+        </section>
+
+        <section>
+          <div className="mb-3 flex items-center justify-between px-1">
+            <div>
+              <p className="text-xs font-semibold text-purple-500">基于你的记录</p>
+              <h2 className="mt-0.5 text-lg font-bold text-gray-800">晴语今日发现</h2>
+            </div>
+            <button onClick={() => navigate('/insight')} className="flex items-center text-xs font-medium text-gray-400">全部 <ChevronRight size={15} /></button>
+          </div>
+
+          <button
+            onClick={() => navigate('/insight')}
+            className="w-full rounded-3xl bg-gradient-to-br from-indigo-600 via-purple-600 to-fuchsia-500 p-5 text-left text-white shadow-soft-lg active:scale-[0.99]"
+          >
+            {heroInsight ? (
+              <div className="flex items-start gap-3">
+                <span className="text-3xl">{heroInsight.icon}</span>
+                <div className="min-w-0 flex-1">
+                  <h3 className="font-bold leading-6">{heroInsight.title}</h3>
+                  <p className="mt-1.5 line-clamp-3 text-sm leading-6 text-white/75">{heroInsight.detail}</p>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-start gap-3">
+                <span className="text-3xl">🔎</span>
+                <div>
+                  <h3 className="font-bold">规律正在慢慢长出来</h3>
+                  <p className="mt-1.5 text-sm leading-6 text-white/75">连续记录几天后，你会在这里看到心情和学习之间的联系。</p>
+                </div>
+              </div>
+            )}
+          </button>
+        </section>
+
+        <section>
+          <h2 className="px-1 text-lg font-bold text-gray-800">接下来，想做什么？</h2>
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            {quickLinks.map((item) => {
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.path}
+                  onClick={() => navigate(item.path)}
+                  className="rounded-3xl bg-white p-4 text-left shadow-soft active:scale-[0.98]"
+                >
+                  <div className={`flex h-10 w-10 items-center justify-center rounded-2xl ${item.color}`}><Icon size={20} /></div>
+                  <p className="mt-3 text-sm font-bold text-gray-700">{item.label}</p>
+                  <p className="mt-1 text-xs text-gray-400">{item.note}</p>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        <section className="rounded-2xl bg-emerald-50 px-4 py-3">
+          <div className="flex items-start gap-2 text-xs leading-5 text-emerald-800">
+            <ShieldCheck size={17} className="mt-0.5 shrink-0" />
+            <p><span className="font-semibold">你的记录属于你。</span> 数据只保存在这台设备；家长端只展示趋势，不展示你写下的原话。</p>
+          </div>
+        </section>
+      </main>
 
       <BottomNav />
     </div>

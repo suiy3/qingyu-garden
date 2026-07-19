@@ -6,7 +6,6 @@ import {
   TrendingUp,
   TrendingDown,
   Clock,
-  BookOpen,
   Phone,
   Sparkles,
   LogOut,
@@ -28,10 +27,11 @@ import Button from '@/components/common/Button';
 import MoodChart from '@/components/mood/MoodChart';
 import { useAppStore } from '@/store/useAppStore';
 import { MOOD_CONFIG, SUBJECT_CONFIG } from '@/utils/constants';
-import { getPastDays, formatDate, formatDuration } from '@/utils/date';
+import { getPastDays, formatDate } from '@/utils/date';
 import { MoodType, SubjectType, MoodRecord } from '@/types';
 import { discoverPatterns, PatternInsight } from '@/utils/patternEngine';
 import { cn } from '@/lib/utils';
+import { clearParentAccess } from '@/utils/parentAccess';
 
 const NEGATIVE_MOODS: MoodType[] = ['anxious', 'sad', 'angry', 'tired'];
 
@@ -193,7 +193,10 @@ export default function ParentDashboard() {
     return { trend: 'stable', diff: 0 };
   }, [moodRecords, timeRange]);
 
-  const handleExit = () => navigate('/');
+  const handleExit = () => {
+    clearParentAccess();
+    navigate('/profile');
+  };
 
   const riskConfig = {
     high: { label: '需重点关注', color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200', icon: AlertTriangle },
@@ -542,7 +545,7 @@ export default function ParentDashboard() {
             <span className="text-xs text-gray-400">近{timeRange}天</span>
           </div>
           <div className="grid grid-cols-7 gap-1">
-            {getPastDays(timeRange).map((date, i) => {
+            {getPastDays(timeRange).map((date) => {
               const dayRecords = moodRecords.filter((r) => formatDate(r.createdAt) === date);
               const hasRecord = dayRecords.length > 0;
               const hasNegative = dayRecords.some(

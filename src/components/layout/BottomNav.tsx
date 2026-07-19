@@ -11,7 +11,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { path: '/', label: '首页', icon: <Home size={22} strokeWidth={2} /> },
-  { path: '/mood-record', label: '记录', icon: <PlusCircle size={28} strokeWidth={2} />, isCenter: true },
+  { path: '/check-in', label: '记录', icon: <PlusCircle size={28} strokeWidth={2} />, isCenter: true },
   { path: '/actions', label: '微行动', icon: <Sparkles size={22} strokeWidth={2} /> },
   { path: '/profile', label: '我的', icon: <User size={22} strokeWidth={2} /> },
 ];
@@ -23,6 +23,9 @@ export default function BottomNav() {
   const isActive = (path: string) => {
     if (path === '/') {
       return location.pathname === '/';
+    }
+    if (path === '/check-in') {
+      return location.pathname === '/check-in' || location.pathname === '/mood-record';
     }
     return location.pathname.startsWith(path);
   };

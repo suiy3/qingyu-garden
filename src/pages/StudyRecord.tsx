@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Clock, Edit3, X, Star, BookOpen, ChevronDown, HelpCircle } from 'lucide-react';
+import { Clock, Edit3, X, Star, BookOpen, ChevronDown } from 'lucide-react';
 import PageContainer from '@/components/layout/PageContainer';
 import SubjectSelector from '@/components/study/SubjectSelector';
 import StudyTimer from '@/components/study/StudyTimer';
@@ -77,8 +77,9 @@ export default function StudyRecord() {
       moodRating
     );
 
+    let createdNoteId: string | null = null;
     if (noteTitle.trim() || noteContent.trim() || noteQuestion.trim() || noteImages.length > 0) {
-      addKnowledgeNote(
+      createdNoteId = addKnowledgeNote(
         selectedSubject,
         noteTitle.trim() || (noteType === 'question' ? '错题记录' : '学习笔记'),
         noteContent.trim(),
@@ -91,6 +92,9 @@ export default function StudyRecord() {
     }
 
     resetForm();
+    if (createdNoteId) {
+      navigate(`/knowledge/${createdNoteId}`);
+    }
   };
 
   const resetForm = () => {

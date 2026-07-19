@@ -22,3 +22,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local-only files (not for deploy)
+.openai/
+.trae/
+runtime-site/
+tools/
+*.cmd
+部署到公开地址-方案A.md

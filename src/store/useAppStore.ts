@@ -35,6 +35,20 @@ const getInitialState = (): AppState => {
 interface AppStore extends AppState {
   addMoodRecord: (moodType: MoodType, intensity: number, triggers: TriggerType[], note: string) => void;
   addStudyRecord: (subject: SubjectType, duration: number, focusRating: number, efficiencyRating: number, moodRating: number, note?: string) => string;
+  addDailyCheckIn: (
+    moodType: MoodType,
+    intensity: number,
+    triggers: TriggerType[],
+    note: string,
+    study: {
+      subject: SubjectType;
+      duration: number;
+      focusRating: number;
+      efficiencyRating: number;
+      moodRating: number;
+      note?: string;
+    }
+  ) => void;
   addKnowledgeNote: (
     subject: SubjectType,
     title: string,
@@ -50,7 +64,7 @@ interface AppStore extends AppState {
       difficulty?: 1 | 2 | 3 | 4 | 5;
     },
     images?: string[]
-  ) => void;
+  ) => string;
   updateKnowledgeNote: (id: string, updates: Partial<KnowledgeNote>) => void;
   deleteKnowledgeNote: (id: string) => void;
   addActionLog: (actionId: string, actionName: string, duration: number, completed: boolean) => void;
@@ -77,7 +91,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
     set((state) => {
       const newState = {
         ...state,
-        moodRecords: [newRecord, ...state.moodRecords],
+        moodRecords: [newRecord, ...(state.isFirstLaunch ? [] : state.moodRecords)],
+        studyRecords: state.isFirstLaunch ? [] : state.studyRecords,
+        knowledgeNotes: state.isFirstLaunch ? [] : state.knowledgeNotes,
+        actionLogs: state.isFirstLaunch ? [] : state.actionLogs,
+        isFirstLaunch: false,
       };
       saveAppState(newState);
       return newState;
@@ -99,7 +117,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
     set((state) => {
       const newState = {
         ...state,
-        studyRecords: [newRecord, ...state.studyRecords],
+        moodRecords: state.isFirstLaunch ? [] : state.moodRecords,
+        studyRecords: [newRecord, ...(state.isFirstLaunch ? [] : state.studyRecords)],
+        knowledgeNotes: state.isFirstLaunch ? [] : state.knowledgeNotes,
+        actionLogs: state.isFirstLaunch ? [] : state.actionLogs,
+        isFirstLaunch: false,
       };
       saveAppState(newState);
       return newState;
@@ -107,10 +129,41 @@ export const useAppStore = create<AppStore>((set, get) => ({
     return id;
   },
 
+  addDailyCheckIn: (moodType, intensity, triggers, note, study) => {
+    const createdAt = new Date().toISOString();
+    const moodRecord: MoodRecord = {
+      id: generateId(),
+      moodType,
+      intensity,
+      triggers,
+      note,
+      createdAt,
+    };
+    const studyRecord: StudyRecord = {
+      id: generateId(),
+      ...study,
+      createdAt,
+    };
+
+    set((state) => {
+      const newState = {
+        ...state,
+        moodRecords: [moodRecord, ...(state.isFirstLaunch ? [] : state.moodRecords)],
+        studyRecords: [studyRecord, ...(state.isFirstLaunch ? [] : state.studyRecords)],
+        knowledgeNotes: state.isFirstLaunch ? [] : state.knowledgeNotes,
+        actionLogs: state.isFirstLaunch ? [] : state.actionLogs,
+        isFirstLaunch: false,
+      };
+      saveAppState(newState);
+      return newState;
+    });
+  },
+
   addKnowledgeNote: (subject, title, content, tags, studyRecordId, noteType = 'normal', questionData, images) => {
     const now = new Date().toISOString();
+    const id = generateId();
     const newNote: KnowledgeNote = {
-      id: generateId(),
+      id,
       subject,
       title,
       content,
@@ -131,11 +184,16 @@ export const useAppStore = create<AppStore>((set, get) => ({
     set((state) => {
       const newState = {
         ...state,
-        knowledgeNotes: [newNote, ...state.knowledgeNotes],
+        moodRecords: state.isFirstLaunch ? [] : state.moodRecords,
+        studyRecords: state.isFirstLaunch ? [] : state.studyRecords,
+        knowledgeNotes: [newNote, ...(state.isFirstLaunch ? [] : state.knowledgeNotes)],
+        actionLogs: state.isFirstLaunch ? [] : state.actionLogs,
+        isFirstLaunch: false,
       };
       saveAppState(newState);
       return newState;
     });
+    return id;
   },
 
   updateKnowledgeNote: (id, updates) => {
@@ -193,29 +251,33 @@ export const useAppStore = create<AppStore>((set, get) => ({
   
 
   clearAllData: () => {
-    const newState = {
-      user: defaultUser,
-      moodRecords: [],
-      studyRecords: [],
-      knowledgeNotes: [],
-      actionLogs: [],
-      isFirstLaunch: false,
-    };
-    saveAppState(newState);
-    set(newState);
+    set((state) => {
+      const newState = {
+        user: state.user,
+        moodRecords: [],
+        studyRecords: [],
+        knowledgeNotes: [],
+        actionLogs: [],
+        isFirstLaunch: false,
+      };
+      saveAppState(newState);
+      return newState;
+    });
   },
 
   resetToMockData: () => {
-    const newState = {
-      user: defaultUser,
-      moodRecords: mockMoodRecords,
-      studyRecords: mockStudyRecords,
-      knowledgeNotes: mockKnowledgeNotes,
-      actionLogs: mockActionLogs,
-      isFirstLaunch: false,
-    };
-    saveAppState(newState);
-    set(newState);
+    set((state) => {
+      const newState = {
+        user: state.user,
+        moodRecords: mockMoodRecords,
+        studyRecords: mockStudyRecords,
+        knowledgeNotes: mockKnowledgeNotes,
+        actionLogs: mockActionLogs,
+        isFirstLaunch: true,
+      };
+      saveAppState(newState);
+      return newState;
+    });
   },
 
   importData: (data) => {

@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, BookOpen, Plus, Tag, HelpCircle, FileText, Image as ImageIcon } from 'lucide-react';
+import { Search, Plus, Tag, HelpCircle, Image as ImageIcon } from 'lucide-react';
 import PageContainer from '@/components/layout/PageContainer';
 import Card from '@/components/common/Card';
 import Empty from '@/components/Empty';
@@ -23,7 +23,7 @@ const SUBJECT_TABS: Array<{ key: 'all' | SubjectType; label: string; emoji: stri
 const TYPE_TABS: Array<{ key: 'all' | NoteType; label: string; emoji: string }> = [
   { key: 'all', label: '全部', emoji: '📋' },
   { key: 'normal', label: '笔记', emoji: '📝' },
-  { key: 'question', label: '题目', emoji: '❓' },
+  { key: 'question', label: '错题', emoji: '❓' },
 ];
 
 export default function KnowledgeList() {
@@ -76,7 +76,7 @@ export default function KnowledgeList() {
   }, [knowledgeNotes]);
 
   return (
-    <PageContainer title="知识笔记" showBack>
+    <PageContainer title="知识点与错题" showBack>
       <div className="px-4 py-6 space-y-5">
         {/* 顶部统计 */}
         <Card className="bg-gradient-to-br from-sky-50 to-cyan-50 border border-sky-100">
@@ -87,13 +87,26 @@ export default function KnowledgeList() {
                 <p className="text-3xl font-bold text-gray-800">{stats.total} 篇</p>
                 <div className="flex gap-2 text-xs">
                   <span className="text-sky-600">📝 笔记 {stats.normalCount}</span>
-                  <span className="text-amber-600">❓ 题目 {stats.questionCount}</span>
+                  <span className="text-amber-600">❓ 错题 {stats.questionCount}</span>
                 </div>
               </div>
             </div>
             <div className="text-5xl">📒</div>
           </div>
         </Card>
+
+        <div className="grid grid-cols-2 gap-3">
+          <button onClick={() => navigate('/knowledge/new')} className="rounded-2xl bg-gradient-to-br from-sky-500 to-cyan-500 p-4 text-left text-white shadow-md shadow-sky-200 active:scale-[0.98]">
+            <span className="text-2xl">📝</span>
+            <p className="mt-2 text-sm font-bold">记一个知识点</p>
+            <p className="mt-1 text-xs text-white/70">公式、概念或心得</p>
+          </button>
+          <button onClick={() => navigate('/knowledge/new?type=question')} className="rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 p-4 text-left text-white shadow-md shadow-amber-200 active:scale-[0.98]">
+            <span className="text-2xl">❓</span>
+            <p className="mt-2 text-sm font-bold">记一道错题</p>
+            <p className="mt-1 text-xs text-white/75">答案、订正与错因</p>
+          </button>
+        </div>
 
         {/* 搜索框 */}
         <div className="relative">
@@ -171,7 +184,8 @@ export default function KnowledgeList() {
 
       {/* 悬浮新建按钮 */}
       <button
-        onClick={() => navigate('/study')}
+        aria-label="新建知识点或错题"
+        onClick={() => navigate('/knowledge/new')}
         className="fixed bottom-24 right-5 w-14 h-14 rounded-full bg-gradient-to-r from-sky-400 to-cyan-500 text-white shadow-lg shadow-sky-300 flex items-center justify-center active:scale-95 transition-transform z-30"
       >
         <Plus size={24} />

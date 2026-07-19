@@ -1,57 +1,41 @@
-# React + TypeScript + Vite
+# 晴语 · 学习与心情花园
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+晴语是一款面向初高中学生的移动端 Web 应用。它把每日心情、学习复盘、知识点、错题和微行动放在同一个轻量流程里，帮助学生看到自己的规律，而不是只留下零散记录。
 
-Currently, two official plugins are available:
+## Windows 一键打开
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+直接双击项目根目录中的 **`启动晴语.cmd`**。启动窗口出现后，浏览器会自动打开晴语。
 
-## Expanding the ESLint configuration
+- 使用期间请保持启动窗口开启。
+- 关闭启动窗口即可停止本地网站。
+- 运行版已经打包在 `runtime-site` 文件夹内，不需要安装 Node.js，也不需要先安装依赖。
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## 快速开始
 
-```js
-export default tseslint.config({
-  extends: [
-    // Remove ...tseslint.configs.recommended and replace with this
-    ...tseslint.configs.recommendedTypeChecked,
-    // Alternatively, use this for stricter rules
-    ...tseslint.configs.strictTypeChecked,
-    // Optionally, add this for stylistic rules
-    ...tseslint.configs.stylisticTypeChecked,
-  ],
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ['./tsconfig.node.json', './tsconfig.app.json'],
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
-})
+```bash
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+完成后，按照终端显示的本地地址在浏览器中打开。
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## 生产构建
 
-export default tseslint.config({
-  extends: [
-    // other configs...
-    // Enable lint rules for React
-    reactX.configs['recommended-typescript'],
-    // Enable lint rules for React DOM
-    reactDom.configs.recommended,
-  ],
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ['./tsconfig.node.json', './tsconfig.app.json'],
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
-})
+```bash
+npm run build
 ```
+
+## 核心页面
+
+- 首页：今日状态、行动建议和知识花园
+- 每日打卡：心情与学习合并记录
+- 知识库：分别保存知识点和错题
+- 智能发现：仅基于本地记录生成趋势提示
+- 周报：总结一周状态与学习节奏
+- 个人页：数据导出、清除、隐私说明和家长入口
+
+## 隐私说明
+
+当前版本的数据默认保存在浏览器本地，不会自动上传。家长视图只显示概括性趋势，不展示学生的记录原话、知识笔记或聊天内容。
+
+如果你是接手本项目的开发者或 agent，请先阅读根目录的 `AGENTS.md`，其中包含完整的项目边界、路由和交接说明。
